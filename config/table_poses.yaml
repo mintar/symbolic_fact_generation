@@ -1,0 +1,106 @@
+# NOTE: This file is only used if the parameter
+# `/mobipick/pick_object_node/planning_scene_boxes` (from file
+# `mobipick_tables_demo/tables_demo_bringup/config/tables_planning_scene.yaml`)
+# is not set.
+#
+# map
+# +----> y        +-------+
+# |               |       |
+# |               |       |
+# v               |       |
+# x               |table_3|
+#                 |       |
+#                 |       |
+#                 |       |
+#                 +-------+
+#
+#                 +-------+
+#                 |       |
+#                 |       |
+#                 |       |
+#                 |table_2|
+#                 |       |
+#                 |       |
+#                 |       |
+#                 +-------+
+# +--------------+
+# |              |
+# |    table_1   |
+# |              |
+# +--------------+
+poses: 
+  - 
+    class_id: "table"
+    instance_id: 1
+    pose: 
+      position: 
+        x: 13.22
+        y: 2.15
+        z: 0.36
+      orientation: 
+        x: 0.0
+        y: 0.0
+        z: 0.7071
+        w: 0.7071
+    size: 
+      x: 1.40
+      y: 0.70
+      z: 0.72
+    min: 
+      x: -0.7
+      y: -0.35
+      z: -0.36
+    max: 
+      x: 0.7
+      y: 0.35
+      z: 0.36
+  - 
+    class_id: "table"
+    instance_id: 2
+    pose: 
+      position: 
+        x: 12.07
+        y: 3.25
+        z: 0.36
+      orientation: 
+        x: 0.0
+        y: 0.0
+        z: 1.0
+        w: 0.0
+    size: 
+      x: 1.40
+      y: 0.70
+      z: 0.72
+    min: 
+      x: -0.7
+      y: -0.35
+      z: -0.36
+    max: 
+      x: 0.7
+      y: 0.35
+      z: 0.36
+  - 
+    class_id: "table"
+    instance_id: 3
+    pose: 
+      position: 
+        x: 10.42
+        y: 3.25
+        z: 0.36
+      orientation: 
+        x: 0.0
+        y: 0.0
+        z: 1.0
+        w: 0.0
+    size: 
+      x: 1.40
+      y: 0.70
+      z: 0.72
+    min: 
+      x: -0.7
+      y: -0.35
+      z: -0.36
+    max: 
+      x: 0.7
+      y: 0.35
+      z: 0.36
