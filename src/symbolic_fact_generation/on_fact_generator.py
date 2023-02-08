@@ -34,54 +34,92 @@ from typing import List
 import yaml
 import time
 import numpy
+import sys
 
 import rospy
 import rospkg
 import rosgraph
 
-from pose_selector.srv import ClassQuery, ClassQueryRequest, PoseDelete, PoseDeleteRequest
-from symbolic_fact_generation.common.aabb import collision
-from symbolic_fact_generation.common.Fact import Fact
+from pose_selector.srv import ClassQuery, ClassQueryRequest
+from symbolic_fact_generation.common.collision_checking import oriented_collision_check_with_obj_size
+from symbolic_fact_generation.common.fact import Fact
+from symbolic_fact_generation.generator_interface import GeneratorInterface
+from symbolic_fact_generation.common.lib import split_object_class_from_id
 
 from rospy_message_converter import message_converter
 
-'''
-Queries object poses from pose_selector, makes predicate on(obj, table) based on their poses.
-'''
 
-def _init_class(query_srv_str: str = "/pick_pose_selector_node/pose_selector_class_query",
-                delete_srv_str: str = "/pick_pose_selector_node/pose_selector_delete") -> None:
-    """Initialize class variables. """
+class OnGenerator(GeneratorInterface):
 
-    if not OnFactGenerator._pose_selector_query_srv:
+    def __init__(self, objects_of_interest: List[str] = [], container_objects: List[str] = [],
+                 query_srv_str: str = "/pick_pose_selector_node/pose_selector_class_query",
+                 planning_scene_param: str = "/mobipick/pick_object_node/planning_scene_boxes") -> None:
         try:
-            # initialize class
             if not rosgraph.is_master_online():
                 print("Waiting for ROS master node to go online ...")
                 while not rosgraph.is_master_online():
                     time.sleep(1.0)
 
+            rospy.wait_for_service(query_srv_str, timeout=10.0)
+            self._pose_selector_query_srv = rospy.ServiceProxy(query_srv_str, ClassQuery)
+
+            self._objects_of_interest = objects_of_interest
+            self._container_objects = container_objects
+
             package_path = rospkg.RosPack().get_path('symbolic_fact_generation')
 
-            # if tables_demo is running use config file parameter server
-            if rospy.has_param("/mobipick/pick_object_node/planning_scene_boxes"):
-                print("Using tables_demo_bringup/config/tables_planning_scene.yaml")
-                planning_scene_boxes = rospy.get_param("/mobipick/pick_object_node/planning_scene_boxes")
-                for table in planning_scene_boxes:
-                    # only process tables
-                    if table["scene_name"].startswith("table"):
-                        class_id, instance_id = table["scene_name"].split("_")
-                        pose = {'class_id': class_id,
-                                'instance_id': int(instance_id),
-                                'pose':
-                                    {'position':
-                                        {'x': table["box_position_x"],
-                                        'y': table["box_position_y"],
-                                        'z': table["box_position_z"]
-                                        }
+            self._planning_scene_object_poses = []
+
+            # if planning scene config file on parameter server
+            if rospy.has_param(planning_scene_param):
+                print(f"Using {planning_scene_param} parameter.")
+                planning_scene_boxes = rospy.get_param(planning_scene_param)
+                id_counter = {}
+                for box in planning_scene_boxes:
+                    class_id, instance_id = split_object_class_from_id(box['scene_name'])
+                    if instance_id is None:
+                        # create id for different class types starting from 1
+                        id_counter[class_id] = id_counter.get(class_id, 1)
+                        instance_id = id_counter[class_id]
+                        id_counter[class_id] += 1
+                    pose = {'class_id': class_id,
+                            'instance_id': instance_id,
+                            'pose':
+                                {'position':
+                                    {
+                                        'x': box['box_position_x'],
+                                        'y': box['box_position_y'],
+                                        'z': box['box_position_z']
+                                    },
+                                 'orientation':
+                                    {
+                                        'x': box['box_orientation_x'],
+                                        'y': box['box_orientation_y'],
+                                        'z': box['box_orientation_z'],
+                                        'w': box['box_orientation_w']
                                     }
+                                 },
+                            'size':
+                                {
+                                    'x': box['box_x_dimension'],
+                                    'y': box['box_y_dimension'],
+                                    'z': box['box_z_dimension']
+                                },
+                            'min':
+                                {
+                                    'x': -(box['box_x_dimension'] / 2.0),
+                                    'y': -(box['box_y_dimension'] / 2.0),
+                                    'z': -(box['box_z_dimension'] / 2.0)
+                                },
+                            'max':
+                                {
+                                    'x': (box['box_x_dimension'] / 2.0),
+                                    'y': (box['box_y_dimension'] / 2.0),
+                                    'z': (box['box_z_dimension'] / 2.0)
+                                }
                             }
-                        OnFactGenerator._table_poses.append(message_converter.convert_dictionary_to_ros_message('object_pose_msgs/ObjectPose', pose))
+                    self._planning_scene_object_poses.append(
+                        message_converter.convert_dictionary_to_ros_message('object_pose_msgs/ObjectPose', pose))
             else:
                 # use default config file
                 print("Using symbolic_fact_generation/config/tables_poses.yaml")
@@ -90,111 +128,61 @@ def _init_class(query_srv_str: str = "/pick_pose_selector_node/pose_selector_cla
                 yaml_content = yaml.load(yamlfile, Loader=yaml.FullLoader)
 
                 for pose in yaml_content["poses"]:
-                    OnFactGenerator._table_poses.append(message_converter.convert_dictionary_to_ros_message('object_pose_msgs/ObjectPose', pose))
+                    self._planning_scene_object_poses.append(
+                        message_converter.convert_dictionary_to_ros_message('object_pose_msgs/ObjectPose', pose))
 
-            print("Waiting for pose_selector class query service!")
-            rospy.wait_for_service(query_srv_str)
-            print("pose_selector class query service found!")
-            OnFactGenerator._pose_selector_query_srv = rospy.ServiceProxy(query_srv_str, ClassQuery)
-
-            print("Waiting for pose_selector delete service!")
-            rospy.wait_for_service(delete_srv_str)
-            print("pose_selector delete service found!")
-            OnFactGenerator._pose_selector_delete_srv = rospy.ServiceProxy(delete_srv_str, PoseDelete)
-
-            OnFactGenerator._bb_yaml = package_path + "/config/boundingboxes.yaml"
-
-            print("Initialized OnFactGenerator class!")
         except FileNotFoundError:
-            print("[WARNING] table_positions.yaml not found!")
+            print("[WARNING] No planning scene parameter is set and table_poses.yaml file is not found! Only objects on other objects facts can be generated!")
         except rospy.ROSInitException:
             print("ROS master was shutdown!")
+            sys.exit(1)
+        except rospy.ROSException:
+            print(f"Timeout while waiting for pose_selector service: {query_srv_str}!")
+            sys.exit(1)
 
-
-class OnFactGenerator:
-
-    _pose_selector_query_srv: rospy.ServiceProxy = None
-    _pose_selector_delete_srv: rospy.ServiceProxy = None
-    _bb_yaml: str = ""
-    _table_poses: List = []
-    _current_facts: List = []
-
-    @classmethod
-    def __make_predicate_on(cls, obj_poses: List) -> List:
-        on_set = []
-
-        # save poses of all klts
-        klts = [obj for obj in obj_poses if obj.class_id == "klt"]
-
-        for table_i in cls._table_poses:
-            for obj_j in obj_poses:
-                # Currenty assuming one object of each class (except tables, but no need to check them)
-                if table_i.class_id != obj_j.class_id:
-                    table_name_i = table_i.class_id + "_" + str(table_i.instance_id)
-                    obj_name_j = obj_j.class_id + "_" + str(obj_j.instance_id)
-                    if collision(table_name_i, table_i.pose, obj_name_j, obj_j.pose, cls._bb_yaml):
-                        if obj_j.pose.position.z > table_i.pose.position.z:
-                            if klts and obj_j not in klts:
-                                # calculate euclidean distance to each klt to check if obj_j is in a klt
-                                min_dist = 100
-                                min_klt = None
-                                for klt in klts:
-                                    dist = numpy.linalg.norm((obj_j.pose.position.x - klt.pose.position.x, obj_j.pose.position.y - klt.pose.position.y, obj_j.pose.position.z - klt.pose.position.z))
-                                    if min_dist > dist:
-                                        min_dist = dist
-                                        min_klt = klt
-                                if min_dist >= 0.15:
-                                    on_set.append(Fact(name="on", values=[obj_name_j, table_name_i]))
-                                else:
-                                    if min_klt:
-                                        klt_name = min_klt.class_id + "_" + str(min_klt.instance_id)
-                                        on_set.append(Fact(name="on", values=[obj_name_j, klt_name]))
-                            else:
-                                on_set.append(Fact(name="on", values=[obj_name_j, table_name_i]))
-
-        return on_set
-
-    @classmethod
-    def process_observations(cls) -> None:
+    def generate_facts(self):
         # query pose_selector for all object classes
         obj_poses = []
-        for obj in ["relay", "screwdriver", "multimeter", "klt", "power_drill", "power_drill_with_grip"]:
-            query_result = cls._pose_selector_query_srv(ClassQueryRequest(class_id = obj))
+        for obj in self._objects_of_interest:
+            query_result = self._pose_selector_query_srv(ClassQueryRequest(class_id=obj))
             obj_poses.extend(query_result.poses)
 
+        on_facts = []
+
+        # create new list with planning scene objects and objects
+        surface_objects = [*self._planning_scene_object_poses, *obj_poses]
+
         # iterate over all poses
-        new_on = cls.__make_predicate_on(obj_poses)
+        for surface_obj_i in surface_objects:
+            for obj_j in obj_poses:
+                surface_obj_name_i = surface_obj_i.class_id + "_" + str(surface_obj_i.instance_id)
+                obj_name_j = obj_j.class_id + "_" + str(obj_j.instance_id)
+                new_fact = None
+                # no need to check with itself
+                if surface_obj_name_i != obj_name_j:
+                    if oriented_collision_check_with_obj_size(surface_obj_i.pose, surface_obj_i.size, obj_j.pose, obj_j.size):
+                        # handle special "in" container object case
+                        if surface_obj_i.class_id in self._container_objects or obj_j.class_id in self._container_objects:
+                            # calculate euclidean distance to klt to check if obj_j is in klt
+                            dist = numpy.linalg.norm((obj_j.pose.position.x - surface_obj_i.pose.position.x,
+                                                      obj_j.pose.position.y - surface_obj_i.pose.position.y,
+                                                      obj_j.pose.position.z - surface_obj_i.pose.position.z))
+                            radius = max(surface_obj_i.max.x, surface_obj_i.max.y, surface_obj_i.max.z) if surface_obj_i.class_id in self._container_objects else max(
+                                obj_j.max.x, obj_j.max.y, obj_j.max.z)
+                            if dist < radius:
+                                if surface_obj_i.class_id in self._container_objects:
+                                    new_fact = Fact(name="in", values=[obj_name_j, surface_obj_name_i])
+                                else:
+                                    new_fact = Fact(name="in", values=[surface_obj_name_i, obj_name_j])
+                            else:
+                                if obj_j.pose.position.z > surface_obj_i.pose.position.z:
+                                    new_fact = Fact(name="on", values=[obj_name_j, surface_obj_name_i])
+                        else:
+                            if obj_j.pose.position.z > surface_obj_i.pose.position.z:
+                                new_fact = Fact(name="on", values=[obj_name_j, surface_obj_name_i])
 
-        for on in list(cls._current_facts):
-            if on in new_on:
-                new_on.remove(on)
-            else:
-                cls._current_facts.remove(on)
-        cls._current_facts.extend(new_on)
+                # add new fact to list if not already there
+                if new_fact is not None and new_fact not in on_facts:
+                    on_facts.append(new_fact)
 
-
-def clear_facts_and_poses_for_table(table_id: str) -> None:
-    _init_class()
-
-    objects_on_table = []
-
-    for fact in list(OnFactGenerator._current_facts):
-        if fact.values[1] == table_id:
-            objects_on_table.append(fact.values[0])
-            OnFactGenerator._current_facts.remove(fact)
-            class_id, instance_id = fact.values[0].rsplit("_", 1)
-            OnFactGenerator._pose_selector_delete_srv(PoseDeleteRequest(class_id = class_id, instance_id = int(instance_id)))
-
-    while objects_on_table:
-        for fact in list(OnFactGenerator._current_facts):
-            if fact.values[1] == objects_on_table[0]:
-                objects_on_table.append(fact.values[0])
-                OnFactGenerator._current_facts.remove(fact)
-                class_id, instance_id = fact.values[0].rsplit("_", 1)
-                OnFactGenerator._pose_selector_delete_srv(PoseDeleteRequest(class_id = class_id, instance_id = int(instance_id)))
-        objects_on_table.pop(0)
-
-def get_current_facts() -> List:
-    _init_class()
-    OnFactGenerator.process_observations()
-    return OnFactGenerator._current_facts.copy()
+        return on_facts

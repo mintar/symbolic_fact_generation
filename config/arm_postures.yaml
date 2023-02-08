@@ -1,0 +1,71 @@
+home:
+  mobipick/ur5_shoulder_pan_joint: 0.00
+  mobipick/ur5_shoulder_lift_joint: -2.60
+  mobipick/ur5_elbow_joint: 2.43
+  mobipick/ur5_wrist_1_joint: -2.05
+  mobipick/ur5_wrist_2_joint: -1.57
+  mobipick/ur5_wrist_3_joint: 3.14
+
+observe100cm_front:
+  mobipick/ur5_shoulder_pan_joint: 0.00
+  mobipick/ur5_shoulder_lift_joint: -2.30
+  mobipick/ur5_elbow_joint: 2.44
+  mobipick/ur5_wrist_1_joint: -0.95
+  mobipick/ur5_wrist_2_joint: 1.57
+  mobipick/ur5_wrist_3_joint: 4.71
+
+observe100cm_left:
+  mobipick/ur5_shoulder_pan_joint: 1.57
+  mobipick/ur5_shoulder_lift_joint: -2.30
+  mobipick/ur5_elbow_joint: 2.44
+  mobipick/ur5_wrist_1_joint: -0.95
+  mobipick/ur5_wrist_2_joint: 1.57
+  mobipick/ur5_wrist_3_joint: 4.71
+
+observe100cm_right:
+  mobipick/ur5_shoulder_pan_joint: -1.57
+  mobipick/ur5_shoulder_lift_joint: -2.30
+  mobipick/ur5_elbow_joint: 2.44
+  mobipick/ur5_wrist_1_joint: -0.95
+  mobipick/ur5_wrist_2_joint: 1.57
+  mobipick/ur5_wrist_3_joint: 4.71
+
+observe100cm_back:
+  mobipick/ur5_shoulder_pan_joint: 3.14
+  mobipick/ur5_shoulder_lift_joint: -2.30
+  mobipick/ur5_elbow_joint: 2.44
+  mobipick/ur5_wrist_1_joint: -0.95
+  mobipick/ur5_wrist_2_joint: 1.57
+  mobipick/ur5_wrist_3_joint: 4.71
+
+transport:
+  mobipick/ur5_shoulder_pan_joint: -0.897
+  mobipick/ur5_shoulder_lift_joint: -1.88
+  mobipick/ur5_elbow_joint: 2.14
+  mobipick/ur5_wrist_1_joint: -1.83
+  mobipick/ur5_wrist_2_joint: -1.58
+  mobipick/ur5_wrist_3_joint: 3.81
+
+place_1:
+  mobipick/ur5_shoulder_pan_joint: -1.72
+  mobipick/ur5_shoulder_lift_joint: -1.836
+  mobipick/ur5_elbow_joint: 1.76
+  mobipick/ur5_wrist_1_joint: -1.52
+  mobipick/ur5_wrist_2_joint: -1.57
+  mobipick/ur5_wrist_3_joint: 2.89
+
+above:
+  mobipick/ur5_shoulder_pan_joint: -1.72
+  mobipick/ur5_shoulder_lift_joint: -0.79
+  mobipick/ur5_elbow_joint: 0.71
+  mobipick/ur5_wrist_1_joint: -1.52
+  mobipick/ur5_wrist_2_joint: -1.57
+  mobipick/ur5_wrist_3_joint: 1.1
+
+tucked:
+  mobipick/ur5_shoulder_pan_joint: 0.0
+  mobipick/ur5_shoulder_lift_joint: -2.37
+  mobipick/ur5_elbow_joint: 2.37
+  mobipick/ur5_wrist_1_joint: -1.15
+  mobipick/ur5_wrist_2_joint: 1.57
+  mobipick/ur5_wrist_3_joint: 4.71
