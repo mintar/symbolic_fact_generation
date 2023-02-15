@@ -58,7 +58,7 @@ class FactPublisher():
                 # import fact generation module, class, params and
                 # save (fact name, instance object of fact generator class) in list
                 self._fact_classes.append((fact_config[0], getattr(__import__(fact_config[1]['module'], fromlist=[
-                                          fact_config[1]['class']]), fact_config[1]['class'])(*fact_config[1]['params'])))
+                                          fact_config[1]['class']]), fact_config[1]['class'])(fact_config[0], *fact_config[1]['params'])))
             except ImportError as e:
                 rospy.logwarn(f"Could not import module for {fact_config[0]} fact: {e}")
             except AttributeError as e:

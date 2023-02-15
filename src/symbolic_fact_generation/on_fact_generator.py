@@ -2,7 +2,7 @@
 
 # BSD 3-Clause License
 
-# Copyright (c) 2022, DFKI Niedersachsen 
+# Copyright (c) 2022, DFKI Niedersachsen
 # All rights reserved.
 
 # Redistribution and use in source and binary forms, with or without
@@ -51,9 +51,9 @@ from rospy_message_converter import message_converter
 
 class OnGenerator(GeneratorInterface):
 
-    def __init__(self, objects_of_interest: List[str] = [], container_objects: List[str] = [],
-                 query_srv_str: str = "/pick_pose_selector_node/pose_selector_class_query",
-                 planning_scene_param: str = "/mobipick/pick_object_node/planning_scene_boxes") -> None:
+    def __init__(self, fact_name: str = 'on', objects_of_interest: List[str] = [], container_objects: List[str] = [],
+                 query_srv_str: str = '/pick_pose_selector_node/pose_selector_class_query',
+                 planning_scene_param: str = '/mobipick/pick_object_node/planning_scene_boxes') -> None:
         try:
             if not rosgraph.is_master_online():
                 print("Waiting for ROS master node to go online ...")
@@ -65,6 +65,7 @@ class OnGenerator(GeneratorInterface):
 
             self._objects_of_interest = objects_of_interest
             self._container_objects = container_objects
+            self._fact_name = fact_name
 
             package_path = rospkg.RosPack().get_path('symbolic_fact_generation')
 
@@ -176,10 +177,10 @@ class OnGenerator(GeneratorInterface):
                                     new_fact = Fact(name="in", values=[surface_obj_name_i, obj_name_j])
                             else:
                                 if obj_j.pose.position.z > surface_obj_i.pose.position.z:
-                                    new_fact = Fact(name="on", values=[obj_name_j, surface_obj_name_i])
+                                    new_fact = Fact(name=self._fact_name, values=[obj_name_j, surface_obj_name_i])
                         else:
                             if obj_j.pose.position.z > surface_obj_i.pose.position.z:
-                                new_fact = Fact(name="on", values=[obj_name_j, surface_obj_name_i])
+                                new_fact = Fact(name=self._fact_name, values=[obj_name_j, surface_obj_name_i])
 
                 # add new fact to list if not already there
                 if new_fact is not None and new_fact not in on_facts:
