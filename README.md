@@ -25,7 +25,19 @@ The first topic publishes all current facts every second, while the second topic
 
 ## Python Import
 
-Another way of using specific facts is to import the fact generating class in python. For example only using the "on" facts:
+Another way of generating the facts specified in the config file is to import the fact generating class in python:
+
+    from symbolic_fact_generation.fact_generation_with_config import FactGenerationWithConfig
+
+    fact_generator = FactGenerationWithConfig(config_path)
+
+    current_facts = fact_generator.generate_facts()
+    specific_facts = fact_generator.generate_facts_with_name(fact_name)
+
+```generate_facts()``` returns all facts specified in the config file, while ```generate_facts_with_name(fact_name)``` only returns the facts with the given name,
+which also needs to be specified in the config file.
+
+You can also import the fact generating class directly. For example only using the "on" facts:
 
     from symbolic_fact_generation.on_fact_generator import OnGenerator
     
