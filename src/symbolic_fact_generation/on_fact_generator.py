@@ -63,7 +63,12 @@ class OnGenerator(GeneratorInterface):
             rospy.wait_for_service(query_srv_str, timeout=10.0)
             self._pose_selector_query_srv = rospy.ServiceProxy(query_srv_str, ClassQuery)
 
-            self._objects_of_interest = objects_of_interest
+            self._objects_of_interest = []
+            for object_of_interest in objects_of_interest:
+                obj_of_interest_class, _ = split_object_class_from_id(object_of_interest)
+                if obj_of_interest_class not in self._objects_of_interest:
+                    self._objects_of_interest.append(obj_of_interest_class)
+
             self._container_objects = container_objects
             self._fact_name = fact_name
 

@@ -30,13 +30,16 @@
 # OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-from typing import List
+from typing import Dict, List, Tuple
 
 import rospy
 import yaml
 import tf
 import math
 import numpy
+import rosparam
+import re
+
 from sensor_msgs.msg import JointState
 
 from symbolic_fact_generation.generator_interface import GeneratorInterface
@@ -45,37 +48,86 @@ from symbolic_fact_generation.common.fact import Fact
 
 class HasArmPostureGenerator(GeneratorInterface):
 
-    def __init__(self, fact_name: str = 'robot_has_arm_posture',
-                 joint_states_topic: str = '/mobipick/joint_states',
-                 arm_posture_param: str = 'arm_postures_yaml',
-                 arm_tolerance: float = 0.01):
+    def __init__(self, fact_name: str = "robot_has_arm_posture",
+                 namespace: str = "/mobipick/",
+                 joint_states_topic: str = "/mobipick/joint_states",
+                 arm_posture_param: str = "",
+                 arm_tolerance: float = 0.01,
+                 undefined_pose_name: str = "undefined"):
         rospy.Subscriber(joint_states_topic, JointState, self.jointStatesCB)
+
+        self._namespace = namespace
 
         self._joint_states_msg = None
         self._joint_states_msg_received = False
         self._fact_name = fact_name
-        self._current_arm_posture = 'undefined'
+        self._current_arm_posture = undefined_pose_name
         self._arm_tolerance = arm_tolerance
+        self._undefined_pose_name = undefined_pose_name
 
         try:
-            with open(rospy.get_param(arm_posture_param), 'r') as arm_postures:
-                self._arm_posture_yaml = yaml.safe_load(arm_postures)
+            # if arm poses param or file specified, use it
+            if arm_posture_param:
+                # check if param
+                arm_posture_file_name = rospy.get_param(arm_posture_param, default=None)
+                if arm_posture_file_name:
+                    with open(arm_posture_file_name, "r") as arm_postures:
+                        self._arm_poses = yaml.safe_load(arm_postures)
+                # else extract from file directly
+                else:
+                    with open(arm_posture_param, "r") as arm_postures:
+                        self._arm_poses = yaml.safe_load(arm_postures)
+            else:
+                # get arm pose from semantic robot description parameter
+                self._arm_poses = self.extract_arm_poses_from_robot_description()
+
         except FileNotFoundError as e:
-            self._arm_posture_yaml = None
+            self._arm_poses = {}
             print(f"Arm posture config file not found: {e}")
+
+    def parse(self, pattern: str, string: str) -> str:
+        """Return first occurrence of pattern in string, or raise AssertionError if pattern cannot be found."""
+        match_result = re.search(pattern, string)
+        assert match_result is not None, f"Error: Cannot parse '{string}' from '{pattern}'!"
+        return match_result.group(1)
+
+    def extract_arm_poses_from_robot_description(self, param_name: str = "robot_description_semantic") -> Dict[str, Dict[str, float]]:
+        """Get joint values from semantic robot description parameter used for arm poses."""
+        params = rosparam.list_params(self._namespace)
+
+        if self._namespace + param_name in params:
+            param = rosparam.get_param(self._namespace + param_name)
+        else:
+            # Otherwise search for param which ends with "_semantic", according to planning_context.launch.
+            for param in params:
+                if param.endswith("_semantic"):
+                    break
+            else:
+                return {}
+
+        # Collect all joint values from group states associated with group "arm".
+        group_tokens: List[Tuple[str, str]] = re.findall(r'<group_state\s+([\'\"\w\s=]+)>(.*?)</group_state>',
+                                                         param, re.DOTALL)
+        return {
+            self.parse(r'name=[\'\"](\w+)[\'\"]', token): {
+                self.parse(r'name=[\'\"](.+?)[\'\"]', line): float(self.parse(r'value=[\'\"](.+?)[\'\"]', line))
+                for line in content.split("\n") if line.strip().startswith("<joint ")
+            }
+            for token, content in group_tokens if "group='arm'" in token or "group='arm'" in token
+        }
 
     def generate_facts(self) -> List[Fact]:
         arm_posture_facts = []
 
-        if self._joint_states_msg_received and self._arm_posture_yaml is not None:
+        if self._joint_states_msg_received and self._arm_poses:
             self._joint_states_msg_received = False
-            arm_posture = 'undefined'
+            arm_posture = self._undefined_pose_name
 
-            for posture in self._arm_posture_yaml:
+            for posture in self._arm_poses:
                 match = True
                 for i, joint_position in enumerate(self._joint_states_msg.position):
-                    if self._joint_states_msg.name[i] in list(self._arm_posture_yaml[posture]):
-                        if abs(joint_position - self._arm_posture_yaml[posture][self._joint_states_msg.name[i]]) < self._arm_tolerance:
+                    if self._joint_states_msg.name[i] in list(self._arm_poses[posture]):
+                        if abs(joint_position - self._arm_poses[posture][self._joint_states_msg.name[i]]) < self._arm_tolerance:
                             continue
                         else:
                             match = False
@@ -87,7 +139,7 @@ class HasArmPostureGenerator(GeneratorInterface):
             arm_posture_facts.append(Fact(name=self._fact_name, values=[arm_posture]))
             self._current_arm_posture = arm_posture
         else:
-            arm_posture_facts.append(Fact(name=self._fact_name, values=[self.current_arm_posture]))
+            arm_posture_facts.append(Fact(name=self._fact_name, values=[self._current_arm_posture]))
 
         return arm_posture_facts
 
@@ -98,38 +150,43 @@ class HasArmPostureGenerator(GeneratorInterface):
 
 class RobotAtGenerator(GeneratorInterface):
 
-    def __init__(self, fact_name: str = 'robot_at',
-                 global_frame: str = '/map',
-                 robot_frame: str = '/mobipick/base_link',
-                 waypoint_param: str = 'waypoints_yaml',
-                 at_threshold: float = 0.2):
-        self._robot_at = 'undefined'
+    def __init__(self, fact_name: str = "robot_at",
+                 global_frame: str = "/map",
+                 robot_frame: str = "/mobipick/base_link",
+                 waypoint_param: str = "waypoints_yaml",
+                 at_threshold: float = 0.2,
+                 undefined_pose_name: str = "undefined"):
+        self._robot_at = undefined_pose_name
 
         self._fact_name = fact_name
         self._global_frame = global_frame
         self._robot_frame = robot_frame
         self._at_threshold = at_threshold
+        self._undefined_pose_name = undefined_pose_name
 
         self._tf_listener = tf.TransformListener()
 
-        try:
-            with open(rospy.get_param(waypoint_param), 'r') as waypoints:
-                self._waypoints = yaml.safe_load(waypoints)
-        except FileNotFoundError as e:
-            self._waypoints = None
-            print(f"Robot waypoints config file not found: {e}")
+        # check if param
+        waypoints_file_name = rospy.get_param(waypoint_param, default=None)
+        if waypoints_file_name:
+            self._waypoints = self.load_waypoints(waypoints_file_name)
+        # else extract from file directly
+        else:
+            self._waypoints = self.load_waypoints(waypoint_param)
 
     def generate_facts(self) -> List[Fact]:
         robot_at_facts = []
         if self._waypoints is not None:
-            robot_at = "undefined"
+            robot_at = self._undefined_pose_name
 
             try:
+
+                self._tf_listener.waitForTransform(self._global_frame, self._robot_frame, rospy.Time(), rospy.Duration(1.0))
                 now = rospy.Time.now()
-                self._tf_listener.waitForTransform(self._global_frame, self._robot_frame, now, rospy.Duration(4.0))
+                self._tf_listener.waitForTransform(self._global_frame, self._robot_frame, now, rospy.Duration(1.0))
                 trans, rot = self._tf_listener.lookupTransform(self._global_frame, self._robot_frame, now)
             except (tf.LookupException, tf.ConnectivityException, tf.ExtrapolationException):
-                rospy.logwarn('Failed to get robot pose')
+                rospy.logwarn("Failed to get robot pose")
                 robot_at_facts.append(Fact(name=self._fact_name, values=[self._robot_at]))
                 return robot_at_facts
 
@@ -144,10 +201,23 @@ class RobotAtGenerator(GeneratorInterface):
 
         return robot_at_facts
 
+    def load_waypoints(self, filepath: str) -> Dict[str, List[float]]:
+        """Load poses from config file."""
+        poses: Dict[str, List[float]] = {}
+        try:
+            with open(filepath, 'r') as yaml_file:
+                yaml_contents: Dict[str, List[float]] = yaml.safe_load(yaml_file)["poses"]
+                poses = {key: val for key, val in yaml_contents.items() if isinstance(
+                    val, List) and all(isinstance(f, float) for f in val) and len(val) == 7}
+            return poses
+        except FileNotFoundError as e:
+            print(f"Robot waypoints config file not found: {e}")
+            return poses
+
     def distance_to_waypoint(self, waypoint, robot_position):
 
-        x_1 = self._waypoints[waypoint][0][0]
-        y_1 = self._waypoints[waypoint][0][1]
+        x_1 = self._waypoints[waypoint][0]
+        y_1 = self._waypoints[waypoint][1]
         x_2 = robot_position[0]
         y_2 = robot_position[1]
 
@@ -156,6 +226,6 @@ class RobotAtGenerator(GeneratorInterface):
 
     def has_correct_heading(self, waypoint, robot_rotation):
         # calculate difference between two rotations as quaternion
-        d = numpy.dot(self._waypoints[waypoint][1], robot_rotation)
+        d = numpy.dot(self._waypoints[waypoint][3:], robot_rotation)
 
         return math.acos(min(abs(d), 1.0)) < self._at_threshold

@@ -17,6 +17,34 @@
 
 # TABLES DEMO
 facts:
-  - robot_at: {module: 'symbolic_fact_generation.robot_facts_generator', class: 'RobotAtGenerator', params: ['/map', '/mobipick/base_link', 'waypoints_yaml', 0.2]}
-  - robot_has_arm_posture: {module: 'symbolic_fact_generation.robot_facts_generator', class: 'HasArmPostureGenerator', params: ['/mobipick/joint_states', 'arm_postures_yaml', 0.01]}
-  - on: {module: 'symbolic_fact_generation.on_fact_generator', class: 'OnGenerator', params: [['relay', 'screwdriver', 'multimeter', 'power_drill_with_grip', 'klt'], ['klt'], '/pick_pose_selector_node/pose_selector_class_query', '/mobipick/pick_object_node/planning_scene_boxes']}
+  - robot_at: {
+    module: 'symbolic_fact_generation.robot_facts_generator',
+    class: 'RobotAtGenerator',
+    params: [
+              '/map',
+              '/mobipick/base_link',
+              'waypoints_yaml',
+              0.2,
+              'unknown_pose'
+            ]
+  }
+  - robot_has_arm_posture: {
+    module: 'symbolic_fact_generation.robot_facts_generator',
+    class: 'HasArmPostureGenerator',
+    params: [
+              '/mobipick/',
+              '/mobipick/joint_states',
+              '',
+              0.01,
+              'unknown']
+  }
+  - on: {
+    module: 'symbolic_fact_generation.on_fact_generator',
+    class: 'OnGenerator',
+    params: [
+              ['relay', 'screwdriver', 'multimeter', 'power_drill_with_grip', 'klt'],
+              ['klt'],
+              '/pick_pose_selector_node/pose_selector_class_query',
+              '/mobipick/pick_object_node/planning_scene_boxes'
+            ]
+  }
