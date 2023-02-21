@@ -41,7 +41,7 @@ You can also import the fact generating class directly. For example only using t
 
     from symbolic_fact_generation.on_fact_generator import OnGenerator
     
-    on_generator = OnGenerator(objects_of_interest, container_objects, pose_selector_query_srv_str, planning_scene_param)
+    on_generator = OnGenerator(fact_name, objects_of_interest, container_objects, pose_selector_query_srv_str, planning_scene_param)
     current_facts = on_generator.generate_facts()
 
 Every Generator class has a ```generate_facts()``` function, which returns a list of ```Fact``` objects.
