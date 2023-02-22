@@ -3,13 +3,28 @@ project(symbolic_fact_generation)
 
 find_package(catkin REQUIRED COMPONENTS
   rospy
+  gazebo_msgs
+  sensor_msgs
+  message_generation
 )
 
 catkin_python_setup()
 
-catkin_package(
-#  INCLUDE_DIRS include
-#  LIBRARIES symbolic_fact_generation
-#  CATKIN_DEPENDS gazebo_msgs roscpp rospy sensor_msgs
-#  DEPENDS system_lib
+add_message_files(
+  FILES
+  Fact.msg
+  Facts.msg
+  ChangedFacts.msg
 )
+
+generate_messages(
+  DEPENDENCIES
+)
+
+catkin_package()
+
+# Testing
+if(CATKIN_ENABLE_TESTING)
+  catkin_add_nosetests(test/test_symbolic_fact_generation_lib.py)
+  catkin_add_nosetests(test/test_symbolic_fact_generation_collision.py)
+endif()

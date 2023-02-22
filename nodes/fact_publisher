@@ -1,0 +1,102 @@
+#!/usr/bin/python3
+
+# BSD 3-Clause License
+
+# Copyright (c) 2022, DFKI Niedersachsen 
+# All rights reserved.
+
+# Redistribution and use in source and binary forms, with or without
+# modification, are permitted provided that the following conditions are met:
+
+# 1. Redistributions of source code must retain the above copyright notice, this
+#    list of conditions and the following disclaimer.
+
+# 2. Redistributions in binary form must reproduce the above copyright notice,
+#    this list of conditions and the following disclaimer in the documentation
+#    and/or other materials provided with the distribution.
+
+# 3. Neither the name of the copyright holder nor the names of its
+#    contributors may be used to endorse or promote products derived from
+#    this software without specific prior written permission.
+
+# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+# AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+# IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+# DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+# FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+# DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+# SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+# CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+# OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+# OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+import rospy
+
+from symbolic_fact_generation.msg import Facts as FactsMsg
+from symbolic_fact_generation.msg import ChangedFacts as ChangedFactsMsg
+from symbolic_fact_generation.common.lib import convert_facts_to_msg, convert_changed_facts_to_msg, read_yaml_file
+
+
+class FactPublisher():
+    def __init__(self):
+        rospy.init_node('fact_publisher', anonymous=False)
+
+        fact_topic = rospy.get_param("fact_topic", default="/fact_publisher")
+
+        self._facts_pub = rospy.Publisher(fact_topic + '/facts', FactsMsg, queue_size=5, latch=True)
+        self._changed_facts_pub = rospy.Publisher(fact_topic + '/changed_facts', ChangedFactsMsg, queue_size=5)
+
+        facts_config_path = rospy.get_param("fact_config_path")
+        facts_config = read_yaml_file(facts_config_path)
+
+        # create a list of classes with generate_facts function to generate the specified facts from the config file
+        self._fact_classes = []
+        for fact in facts_config['facts']:
+            try:
+                fact_config = fact.popitem()
+
+                # import fact generation module, class, params and
+                # save (fact name, instance object of fact generator class) in list
+                self._fact_classes.append((fact_config[0], getattr(__import__(fact_config[1]['module'], fromlist=[
+                                          fact_config[1]['class']]), fact_config[1]['class'])(fact_config[0], *fact_config[1]['params'])))
+            except ImportError as e:
+                rospy.logwarn(f"Could not import module for {fact_config[0]} fact: {e}")
+            except AttributeError as e:
+                rospy.logwarn(f"Could not import class for {fact_config[0]} fact: {e}")
+            except Exception as e:
+                rospy.logerr(f"Error while processing fact config file: {e}")
+
+        self.current_facts = []
+
+    def update_and_publish_facts(self) -> None:
+        generated_facts = []
+        removed_facts = []
+
+        for generator in self._fact_classes:
+            try:
+                generated_facts.extend(generator[1].generate_facts())
+            except AttributeError:
+                rospy.logwarn(
+                    f"Specified generator class for fact {generator[0]} has no generate_facts() method! Could not generate {generator[0]} facts!")
+
+        for fact in list(self.current_facts):
+            if fact in generated_facts:
+                generated_facts.remove(fact)
+            else:
+                self.current_facts.remove(fact)
+                removed_facts.append(fact)
+        self.current_facts.extend(generated_facts)
+
+        if generated_facts or removed_facts:
+            update_types = [ChangedFactsMsg.ADDED_FACT for i in range(len(generated_facts))]
+            update_types.extend([ChangedFactsMsg.REMOVED_FACT for i in range(len(removed_facts))])
+            self._changed_facts_pub.publish(convert_changed_facts_to_msg(update_types, [*generated_facts, *removed_facts]))
+
+        self._facts_pub.publish(convert_facts_to_msg(self.current_facts))
+
+
+if __name__ == '__main__':
+    fp = FactPublisher()
+    while not rospy.is_shutdown():
+        rospy.sleep(1.0)
+        fp.update_and_publish_facts()
