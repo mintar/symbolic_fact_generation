@@ -25,6 +25,7 @@ facts:
               '/mobipick/base_link',
               'waypoints_yaml',
               0.2,
+              0.015,
               'unknown_pose'
             ]
   }

@@ -113,7 +113,7 @@ class HasArmPostureGenerator(GeneratorInterface):
                 self.parse(r'name=[\'\"](.+?)[\'\"]', line): float(self.parse(r'value=[\'\"](.+?)[\'\"]', line))
                 for line in content.split("\n") if line.strip().startswith("<joint ")
             }
-            for token, content in group_tokens if "group='arm'" in token or "group='arm'" in token
+            for token, content in group_tokens if "group='arm'" in token or 'group="arm"' in token
         }
 
     def generate_facts(self) -> List[Fact]:
@@ -155,6 +155,7 @@ class RobotAtGenerator(GeneratorInterface):
                  robot_frame: str = "/mobipick/base_link",
                  waypoint_param: str = "waypoints_yaml",
                  at_threshold: float = 0.2,
+                 rot_threshold: float = 0.015,
                  undefined_pose_name: str = "undefined"):
         self._robot_at = undefined_pose_name
 
@@ -162,6 +163,7 @@ class RobotAtGenerator(GeneratorInterface):
         self._global_frame = global_frame
         self._robot_frame = robot_frame
         self._at_threshold = at_threshold
+        self._rot_treshold = rot_threshold
         self._undefined_pose_name = undefined_pose_name
 
         self._tf_listener = tf.TransformListener()
@@ -180,7 +182,6 @@ class RobotAtGenerator(GeneratorInterface):
             robot_at = self._undefined_pose_name
 
             try:
-
                 self._tf_listener.waitForTransform(self._global_frame, self._robot_frame, rospy.Time(), rospy.Duration(1.0))
                 now = rospy.Time.now()
                 self._tf_listener.waitForTransform(self._global_frame, self._robot_frame, now, rospy.Duration(1.0))
@@ -189,7 +190,6 @@ class RobotAtGenerator(GeneratorInterface):
                 rospy.logwarn("Failed to get robot pose")
                 robot_at_facts.append(Fact(name=self._fact_name, values=[self._robot_at]))
                 return robot_at_facts
-
             for waypoint in self._waypoints:
                 if self.distance_to_waypoint(waypoint, trans) < self._at_threshold:
                     if self.has_correct_heading(waypoint, rot):
@@ -228,4 +228,4 @@ class RobotAtGenerator(GeneratorInterface):
         # calculate difference between two rotations as quaternion
         d = numpy.dot(self._waypoints[waypoint][3:], robot_rotation)
 
-        return math.acos(min(abs(d), 1.0)) < self._at_threshold
+        return abs(abs(d) - 1.0) < self._rot_treshold
