@@ -17,7 +17,7 @@
 
 # TABLES DEMO
 facts:
-  - robot_at: {
+  - 'robot_at': {
     module: 'symbolic_fact_generation.robot_facts_generator',
     class: 'RobotAtGenerator',
     params: [
@@ -25,10 +25,11 @@ facts:
               '/mobipick/base_link',
               'waypoints_yaml',
               0.2,
+              0.015,
               'unknown_pose'
             ]
   }
-  - robot_has_arm_posture: {
+  - 'robot_has_arm_posture': {
     module: 'symbolic_fact_generation.robot_facts_generator',
     class: 'HasArmPostureGenerator',
     params: [
@@ -38,7 +39,7 @@ facts:
               0.01,
               'unknown']
   }
-  - on: {
+  - 'on': {
     module: 'symbolic_fact_generation.on_fact_generator',
     class: 'OnGenerator',
     params: [
