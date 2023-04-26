@@ -182,9 +182,9 @@ class RobotAtGenerator(GeneratorInterface):
             robot_at = self._undefined_pose_name
 
             try:
-                self._tf_listener.waitForTransform(self._global_frame, self._robot_frame, rospy.Time(), rospy.Duration(1.0))
+                self._tf_listener.waitForTransform(self._global_frame, self._robot_frame, rospy.Time(), rospy.Duration(5.0))
                 now = rospy.Time.now()
-                self._tf_listener.waitForTransform(self._global_frame, self._robot_frame, now, rospy.Duration(1.0))
+                self._tf_listener.waitForTransform(self._global_frame, self._robot_frame, now, rospy.Duration(5.0))
                 trans, rot = self._tf_listener.lookupTransform(self._global_frame, self._robot_frame, now)
             except (tf.LookupException, tf.ConnectivityException, tf.ExtrapolationException):
                 rospy.logwarn("Failed to get robot pose")
