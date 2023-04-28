@@ -226,9 +226,8 @@ def oriented_collision_check_with_bb_config(obj1_name, obj1_pose, obj2_name, obj
     return SAT(bb_1, bb_2)
 
 
-def create_bb_from_obj_size(obj_pose, obj_size):
+def create_bb_from_obj_size(obj_pose, obj_size, padding=0.005):
     # convert size to min max values and add a padding to bb
-    padding = 0.001
     obj_size_min_max = {'x_max': round(obj_size.x / 2.0 + padding, 4), 'x_min': -round(obj_size.x / 2.0 + padding, 4),
                         'y_max': round(obj_size.y / 2.0 + padding, 4), 'y_min': -round(obj_size.y / 2.0 + padding, 4),
                         'z_max': round(obj_size.z / 2.0 + padding, 4), 'z_min': -round(obj_size.z / 2.0 + padding, 4)}
@@ -244,15 +243,15 @@ def create_bb_from_obj_size(obj_pose, obj_size):
     return BoundingBox(c, r, o)
 
 
-def collision_check_with_obj_size(obj1_pose, obj1_size, obj2_pose, obj2_size):
-    bb_1 = create_bb_from_obj_size(obj1_pose, obj1_size)
-    bb_2 = create_bb_from_obj_size(obj2_pose, obj2_size)
+def collision_check_with_obj_size(obj1_pose, obj1_size, obj2_pose, obj2_size, padding=0.005):
+    bb_1 = create_bb_from_obj_size(obj1_pose, obj1_size, 0.005)
+    bb_2 = create_bb_from_obj_size(obj2_pose, obj2_size, 0.005)
 
     return aabb(bb_1, bb_2)
 
 
-def oriented_collision_check_with_obj_size(obj1_pose, obj1_size, obj2_pose, obj2_size):
-    bb_1 = create_bb_from_obj_size(obj1_pose, obj1_size)
-    bb_2 = create_bb_from_obj_size(obj2_pose, obj2_size)
+def oriented_collision_check_with_obj_size(obj1_pose, obj1_size, obj2_pose, obj2_size, padding=0.005):
+    bb_1 = create_bb_from_obj_size(obj1_pose, obj1_size, 0.005)
+    bb_2 = create_bb_from_obj_size(obj2_pose, obj2_size, 0.005)
 
     return SAT(bb_1, bb_2)

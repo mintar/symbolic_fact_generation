@@ -155,40 +155,61 @@ class OnGenerator(GeneratorInterface):
 
         on_facts = []
 
-        # create new list with planning scene objects and objects
-        surface_objects = [*self._planning_scene_object_poses, *obj_poses]
+        # create new list with container objects
+        container_objects = [
+            container_obj for container_obj in obj_poses if container_obj.class_id in self._container_objects]
 
-        # iterate over all poses
-        for surface_obj_i in surface_objects:
-            for obj_j in obj_poses:
-                surface_obj_name_i = surface_obj_i.class_id + "_" + str(surface_obj_i.instance_id)
-                obj_name_j = obj_j.class_id + "_" + str(obj_j.instance_id)
+        # iterate over all container objects to create in facts
+        for container_obj in container_objects:
+            for obj in obj_poses:
+                container_obj_name = container_obj.class_id + "_" + str(container_obj.instance_id)
+                obj_name = obj.class_id + "_" + str(obj.instance_id)
                 new_fact = None
                 # no need to check with itself
-                if surface_obj_name_i != obj_name_j:
-                    if oriented_collision_check_with_obj_size(surface_obj_i.pose, surface_obj_i.size, obj_j.pose, obj_j.size):
-                        # handle special "in" container object case
-                        if surface_obj_i.class_id in self._container_objects or obj_j.class_id in self._container_objects:
-                            # calculate euclidean distance to klt to check if obj_j is in klt
-                            dist = numpy.linalg.norm((obj_j.pose.position.x - surface_obj_i.pose.position.x,
-                                                      obj_j.pose.position.y - surface_obj_i.pose.position.y,
-                                                      obj_j.pose.position.z - surface_obj_i.pose.position.z))
-                            radius = max(surface_obj_i.max.x, surface_obj_i.max.y, surface_obj_i.max.z) if surface_obj_i.class_id in self._container_objects else max(
-                                obj_j.max.x, obj_j.max.y, obj_j.max.z)
-                            if dist < radius:
-                                if surface_obj_i.class_id in self._container_objects:
-                                    new_fact = Fact(name="in", values=[obj_name_j, surface_obj_name_i])
-                                else:
-                                    new_fact = Fact(name="in", values=[surface_obj_name_i, obj_name_j])
-                            else:
-                                if obj_j.pose.position.z > surface_obj_i.pose.position.z:
-                                    new_fact = Fact(name=self._fact_name, values=[obj_name_j, surface_obj_name_i])
-                        else:
-                            if obj_j.pose.position.z > surface_obj_i.pose.position.z:
-                                new_fact = Fact(name=self._fact_name, values=[obj_name_j, surface_obj_name_i])
+                if container_obj_name != obj_name:
+                    if check_in_condition(obj, container_obj):
+                        new_fact = Fact(name="in", values=[obj_name, container_obj_name])
+
+                # add new fact to list if not already there
+                if new_fact is not None and new_fact not in on_facts:
+                    on_facts.append(new_fact)
+
+        # iterate over all poses
+        for surface_obj in self._planning_scene_object_poses:
+            for obj in obj_poses:
+                surface_obj_name = surface_obj.class_id + "_" + str(surface_obj.instance_id)
+                obj_name = obj.class_id + "_" + str(obj.instance_id)
+                new_fact = None
+                # no need to check with itself
+                if surface_obj_name != obj_name:
+                    # dont check objects which are in a container
+                    if obj_name not in [in_container.values[0] for in_container in on_facts if in_container.name == "in" and in_container.values[0] == obj_name]:
+                        if check_on_condition(obj, surface_obj):
+                            new_fact = Fact(name=self._fact_name, values=[obj_name, surface_obj_name])
 
                 # add new fact to list if not already there
                 if new_fact is not None and new_fact not in on_facts:
                     on_facts.append(new_fact)
 
         return on_facts
+
+
+def check_in_condition(obj, container_obj) -> bool:
+    if oriented_collision_check_with_obj_size(container_obj.pose, container_obj.size, obj.pose, obj.size):
+        # calculate euclidean distance to check if obj is in container_obj
+        dist = numpy.linalg.norm((obj.pose.position.x - container_obj.pose.position.x,
+                                  obj.pose.position.y - container_obj.pose.position.y,
+                                  obj.pose.position.z - container_obj.pose.position.z))
+        radius = max(container_obj.max.x, container_obj.max.y, container_obj.max.z) if sum([container_obj.max.x, container_obj.max.y, container_obj.max.z]) > 0.0 else max(
+            container_obj.size.x / 2.0, container_obj.size.y /
+            2.0, container_obj.size.z / 2.0)
+        if dist < radius:
+            return True
+    return False
+
+
+def check_on_condition(obj, surface_obj) -> bool:
+    if oriented_collision_check_with_obj_size(surface_obj.pose, surface_obj.size, obj.pose, obj.size):
+        if obj.pose.position.z > surface_obj.pose.position.z:
+            return True
+    return False
