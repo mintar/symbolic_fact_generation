@@ -37,6 +37,7 @@ import yaml
 import tf
 import math
 import numpy
+import os
 import rosparam
 import re
 
@@ -154,6 +155,7 @@ class RobotAtGenerator(GeneratorInterface):
                  global_frame: str = "/map",
                  robot_frame: str = "/mobipick/base_link",
                  waypoint_param: str = "waypoints_yaml",
+                 waypoint_namespace: str = "/mobipick/tables_demo_planning",
                  at_threshold: float = 0.2,
                  rot_threshold: float = 0.015,
                  undefined_pose_name: str = "undefined"):
@@ -170,11 +172,14 @@ class RobotAtGenerator(GeneratorInterface):
 
         # check if param
         waypoints_file_name = rospy.get_param(waypoint_param, default=None)
-        if waypoints_file_name:
+        if waypoints_file_name and os.path.isfile(waypoints_file_name):
             self._waypoints = self.load_waypoints(waypoints_file_name)
-        # else extract from file directly
-        else:
+        # else extract from file directly if possible
+        elif os.path.isfile(waypoint_param):
             self._waypoints = self.load_waypoints(waypoint_param)
+        # else load from rosparam server
+        else:
+            self._waypoints = self.load_rosparams(waypoint_namespace)
 
     def generate_facts(self) -> List[Fact]:
         robot_at_facts = []
@@ -213,6 +218,15 @@ class RobotAtGenerator(GeneratorInterface):
         except FileNotFoundError as e:
             print(f"Robot waypoints config file not found: {e}")
             return poses
+
+    def load_rosparams(self, namespace: str) -> Dict[str, List[float]]:
+        """Load poses from rosparam server."""
+        poses: Dict[str, List[float]] = {}
+        for param_name in rosparam.list_params(namespace):
+            param = rosparam.get_param(param_name)
+            if isinstance(param, List) and all(isinstance(f, float) for f in param) and len(param) == 7:
+                poses[param_name.rsplit('/', maxsplit=1)[-1]] = param
+        return poses
 
     def distance_to_waypoint(self, waypoint, robot_position):
 
