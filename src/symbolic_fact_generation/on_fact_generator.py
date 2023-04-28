@@ -200,9 +200,8 @@ def check_in_condition(obj, container_obj) -> bool:
         dist = numpy.linalg.norm((obj.pose.position.x - container_obj.pose.position.x,
                                   obj.pose.position.y - container_obj.pose.position.y,
                                   obj.pose.position.z - container_obj.pose.position.z))
-        radius = max(container_obj.max.x, container_obj.max.y, container_obj.max.z) if sum([container_obj.max.x, container_obj.max.y, container_obj.max.z]) > 0.0 else max(
-            container_obj.size.x / 2.0, container_obj.size.y /
-            2.0, container_obj.size.z / 2.0)
+        radius = max(container_obj.max.x, container_obj.max.y, container_obj.max.z,
+                     container_obj.size.x / 2.0, container_obj.size.y / 2.0, container_obj.size.z / 2.0)
         if dist < radius:
             return True
     return False
