@@ -52,7 +52,7 @@ class TestCollisionDetection(unittest.TestCase):
 
 
 PKG = 'symbolic_fact_generation'
-NAME = 'test_symbolic_fact_generation_lib'
+NAME = 'test_symbolic_fact_generation_collision'
 
 if __name__ == '__main__':
     import rosunit
