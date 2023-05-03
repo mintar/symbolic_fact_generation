@@ -180,6 +180,9 @@ class RobotAtGenerator(GeneratorInterface):
         # else load from rosparam server
         else:
             self._waypoints = self.load_rosparams(waypoint_namespace)
+        # Workaround: Fix the non-standard pose format from the config.
+        for key, value in self._waypoints.items():
+            self._waypoints[key] = value[:3] + value[4:] + [value[3]]
 
     def generate_facts(self) -> List[Fact]:
         robot_at_facts = []
@@ -202,7 +205,7 @@ class RobotAtGenerator(GeneratorInterface):
             robot_at_facts.append(Fact(name=self._fact_name, values=[robot_at]))
             self._robot_at = robot_at
         else:
-            robot_at_facts.append(Fact(name=self._fact_name, values=[self.robot_at]))
+            robot_at_facts.append(Fact(name=self._fact_name, values=[self._robot_at]))
 
         return robot_at_facts
 
