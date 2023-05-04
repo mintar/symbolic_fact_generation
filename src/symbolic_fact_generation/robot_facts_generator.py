@@ -30,7 +30,7 @@
 # OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-from typing import Dict, List, Tuple
+from typing import Dict, List, Sequence, Tuple
 
 import rospy
 import yaml
@@ -180,9 +180,6 @@ class RobotAtGenerator(GeneratorInterface):
         # else load from rosparam server
         else:
             self._waypoints = self.load_rosparams(waypoint_namespace)
-        # Workaround: Fix the non-standard pose format from the config.
-        for key, value in self._waypoints.items():
-            self._waypoints[key] = value[:3] + value[4:] + [value[3]]
 
     def generate_facts(self) -> List[Fact]:
         robot_at_facts = []
@@ -214,9 +211,15 @@ class RobotAtGenerator(GeneratorInterface):
         poses: Dict[str, List[float]] = {}
         try:
             with open(filepath, 'r') as yaml_file:
-                yaml_contents: Dict[str, List[float]] = yaml.safe_load(yaml_file)["poses"]
-                poses = {key: val for key, val in yaml_contents.items() if isinstance(
-                    val, List) and all(isinstance(f, float) for f in val) and len(val) == 7}
+                yaml_contents: Dict[str, Sequence[Sequence[float]]] = yaml.safe_load(yaml_file)["poses"]
+                poses = {
+                    key: [val for tokens in param for val in tokens] for key, param in yaml_contents.items()
+                    if isinstance(param, Sequence)
+                    and all(isinstance(tokens, Sequence) and all(isinstance(f, float) for f in tokens) for tokens in param)
+                    and tuple(map(len, param)) == (3, 4)
+                }
+            if not poses:
+                raise RuntimeError(f"No waypoints found in config file: {filepath}")
             return poses
         except FileNotFoundError as e:
             print(f"Robot waypoints config file not found: {e}")
@@ -227,8 +230,14 @@ class RobotAtGenerator(GeneratorInterface):
         poses: Dict[str, List[float]] = {}
         for param_name in rosparam.list_params(namespace):
             param = rosparam.get_param(param_name)
-            if isinstance(param, List) and all(isinstance(f, float) for f in param) and len(param) == 7:
-                poses[param_name.rsplit('/', maxsplit=1)[-1]] = param
+            if (
+                isinstance(param, Sequence)
+                and all(isinstance(tokens, Sequence) and all(isinstance(f, float) for f in tokens) for tokens in param)
+                and tuple(map(len, param)) == (3, 4)
+            ):
+                poses[param_name.rsplit('/', maxsplit=1)[-1]] = [val for tokens in param for val in tokens]
+        if not poses:
+            raise RuntimeError("No waypoints found on rosparam server.")
         return poses
 
     def distance_to_waypoint(self, waypoint, robot_position):
