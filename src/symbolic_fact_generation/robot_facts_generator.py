@@ -171,7 +171,7 @@ class RobotAtGenerator(GeneratorInterface):
         self._tf_listener = tf.TransformListener()
 
         # check if param
-        waypoints_file_name = rospy.get_param(waypoint_param, default=None)
+        waypoints_file_name = rospy.get_param(waypoint_param, default=None) if waypoint_param else None
         if waypoints_file_name and os.path.isfile(waypoints_file_name):
             self._waypoints = self.load_waypoints(waypoints_file_name)
         # else extract from file directly if possible
