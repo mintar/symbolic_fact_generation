@@ -202,6 +202,9 @@ def check_in_condition(obj, container_obj) -> bool:
                                   obj.pose.position.z - container_obj.pose.position.z))
         radius = max(container_obj.max.x, container_obj.max.y, container_obj.max.z,
                      container_obj.size.x / 2.0, container_obj.size.y / 2.0, container_obj.size.z / 2.0)
+        # remove 10% of radius for objects colliding with the outside wall
+        # still detected as IN for rectangular container objects like klt if close to it
+        radius = radius - radius * 0.1
         if dist < radius:
             return True
     return False
