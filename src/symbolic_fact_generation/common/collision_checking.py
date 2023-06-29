@@ -244,14 +244,14 @@ def create_bb_from_obj_size(obj_pose, obj_size, padding=0.005):
 
 
 def collision_check_with_obj_size(obj1_pose, obj1_size, obj2_pose, obj2_size, padding=0.005):
-    bb_1 = create_bb_from_obj_size(obj1_pose, obj1_size, 0.005)
-    bb_2 = create_bb_from_obj_size(obj2_pose, obj2_size, 0.005)
+    bb_1 = create_bb_from_obj_size(obj1_pose, obj1_size, padding)
+    bb_2 = create_bb_from_obj_size(obj2_pose, obj2_size, padding)
 
     return aabb(bb_1, bb_2)
 
 
 def oriented_collision_check_with_obj_size(obj1_pose, obj1_size, obj2_pose, obj2_size, padding=0.005):
-    bb_1 = create_bb_from_obj_size(obj1_pose, obj1_size, 0.005)
-    bb_2 = create_bb_from_obj_size(obj2_pose, obj2_size, 0.005)
+    bb_1 = create_bb_from_obj_size(obj1_pose, obj1_size, padding)
+    bb_2 = create_bb_from_obj_size(obj2_pose, obj2_size, padding)
 
     return SAT(bb_1, bb_2)
