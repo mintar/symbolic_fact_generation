@@ -58,10 +58,15 @@ class TestOnGenerator(unittest.TestCase):
         relay_size = Vector3(0.0575, 0.0451, 0.104)
         relay = self.ObjectPose('relay', 1, relay_pose, relay_size)
 
-        multimeter_pose = Pose(position=Point(19.43, 13.93, 0.73),
+        multimeter_1_pose = Pose(position=Point(19.43, 13.93, 0.73),
                         orientation=Quaternion(0.0, 0.0, 0.6, 0.8))
-        multimeter_size = Vector3(0.18, 0.087, 0.042)
-        multimeter = self.ObjectPose('multimeter', 1, multimeter_pose, multimeter_size)
+        multimeter_1_size = Vector3(0.18, 0.087, 0.042)
+        multimeter_1 = self.ObjectPose('multimeter', 1, multimeter_1_pose, multimeter_1_size)
+
+        multimeter_2_pose = Pose(position=Point(19.43, 13.93, 0.78),   # artificially shifted 5 cm upwards
+                        orientation=Quaternion(0.0, 0.0, 0.6, 0.8))
+        multimeter_2_size = multimeter_1_size
+        multimeter_2 = self.ObjectPose('multimeter', 1, multimeter_2_pose, multimeter_2_size)
 
         power_drill_with_grip_pose = Pose(position=Point(19.78, 13.9, 0.836),
                         orientation=Quaternion(-0.4, -0.586, 0.587, 0.39))
@@ -84,11 +89,12 @@ class TestOnGenerator(unittest.TestCase):
         self.assertFalse(check_on_condition(klt, table_2), msg="klt_1 is not on table_2")
         self.assertFalse(check_on_condition(relay, table_2), msg="relay_1 is not on table_2")
         # check actual objects on table 2 = True
-        self.assertTrue(check_on_condition(multimeter, table_2), msg="multimeter_1 is on table_2")
+        self.assertTrue(check_on_condition(multimeter_1, table_2), msg="multimeter_1 is on table_2")
+        self.assertTrue(check_on_condition(multimeter_2, table_2), msg="multimeter_2 is on table_2")
         self.assertTrue(check_on_condition(power_drill_with_grip, table_2), msg="power_drill_with_grip_1 is on table_2")
         # check same objects on table 1 = False
-        self.assertFalse(check_on_condition(multimeter, table_1), msg="multimeter_1 is on not table_1")
-        self.assertFalse(check_on_condition(power_drill_with_grip, table_1), msg="power_drill_with_grip_1 is on not table_1")
+        self.assertFalse(check_on_condition(multimeter_1, table_1), msg="multimeter_1 is not on table_1")
+        self.assertFalse(check_on_condition(power_drill_with_grip, table_1), msg="power_drill_with_grip_1 is not on table_1")
 
     def test_multimeter_in_klt(self):
         klt_pose = Pose(position=Point(21.123, 13.955, 0.802),
