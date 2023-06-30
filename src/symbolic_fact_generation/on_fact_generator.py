@@ -40,6 +40,7 @@ import rospy
 import rospkg
 import rosgraph
 
+from copy import deepcopy
 from pose_selector.srv import ClassQuery, ClassQueryRequest
 from symbolic_fact_generation.common.collision_checking import oriented_collision_check_with_obj_size
 from symbolic_fact_generation.common.fact import Fact
@@ -210,8 +211,19 @@ def check_in_condition(obj, container_obj) -> bool:
     return False
 
 
-def check_on_condition(obj, surface_obj) -> bool:
-    if oriented_collision_check_with_obj_size(surface_obj.pose, surface_obj.size, obj.pose, obj.size):
-        if obj.pose.position.z > surface_obj.pose.position.z:
-            return True
-    return False
+def check_on_condition(obj, surface_obj, z_threshold=0.1) -> bool:
+    """
+    Checks whether `obj` intersects with a box on top of `surface_obj`. That
+    collision box has the same x and y dimensions as `surface_obj` and a z
+    dimension of `z_threshold`.
+
+    :param z_threshold: distance in meters above the table to count as "on" the table
+    """
+    # Assumption: surface_obj.pose.orientation is "upright"
+    surface_pose = deepcopy(surface_obj.pose)
+    surface_size = deepcopy(surface_obj.size)
+
+    surface_pose.position.z = surface_pose.position.z + surface_size.z / 2 + z_threshold / 2
+    surface_size.z = z_threshold
+
+    return oriented_collision_check_with_obj_size(surface_pose, surface_size, obj.pose, obj.size)
