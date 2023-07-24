@@ -1,8 +1,12 @@
 <?xml version="1.0"?>
 <launch>
-    <param name="fact_topic" type="str" value="/fact_publisher"/>
-    <param name="fact_config_path" type="str" value="$(find symbolic_fact_generation)/config/facts_config.yaml"/>
-    <param name="arm_postures_yaml" type="str" value="$(find symbolic_fact_generation)/config/arm_postures.yaml"/>
+    <arg name="fact_topic" default="/fact_publisher"/>
+    <arg name="fact_config_path" default="$(find symbolic_fact_generation)/config/facts_config.yaml"/>
+    <arg name="arm_postures_yaml" default="$(find symbolic_fact_generation)/config/arm_postures.yaml"/>
+
+    <param name="fact_topic" type="str" value="$(arg fact_topic)"/>
+    <param name="fact_config_path" type="str" value="$(arg fact_config_path)"/>
+    <param name="arm_postures_yaml" type="str" value="$(arg arm_postures_yaml)"/>
 
     <node name="fact_publisher" pkg="symbolic_fact_generation" type="fact_publisher" respawn="false" output="screen"/>
 
