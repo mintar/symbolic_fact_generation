@@ -35,13 +35,13 @@ import yaml
 import time
 import numpy
 import sys
-
+import json
 import rospy
 import rospkg
 import rosgraph
 
 from copy import deepcopy
-from pose_selector.srv import ClassQuery, ClassQueryRequest
+from daa_knowledge_base_ros.srv import Query, QueryRequest
 from symbolic_fact_generation.common.collision_checking import oriented_collision_check_with_obj_size
 from symbolic_fact_generation.common.fact import Fact
 from symbolic_fact_generation.generator_interface import GeneratorInterface
@@ -53,7 +53,7 @@ from rospy_message_converter import message_converter
 class OnGenerator(GeneratorInterface):
 
     def __init__(self, fact_name: str = 'on', objects_of_interest: List[str] = [], container_objects: List[str] = [],
-                 query_srv_str: str = '/pick_pose_selector_node/pose_selector_class_query',
+                 query_service_name: str = '/mobipick/daa_knowledge_base/query',
                  planning_scene_param: str = '/mobipick/pick_object_node/planning_scene_boxes') -> None:
         try:
             if not rosgraph.is_master_online():
@@ -61,8 +61,8 @@ class OnGenerator(GeneratorInterface):
                 while not rosgraph.is_master_online():
                     time.sleep(1.0)
 
-            rospy.wait_for_service(query_srv_str, timeout=10.0)
-            self._pose_selector_query_srv = rospy.ServiceProxy(query_srv_str, ClassQuery)
+            rospy.wait_for_service(query_service_name, timeout=10.0)
+            self._kb_query_service_proxy = rospy.ServiceProxy(query_service_name, Query)
 
             self._objects_of_interest = []
             for object_of_interest in objects_of_interest:
@@ -139,58 +139,56 @@ class OnGenerator(GeneratorInterface):
                         message_converter.convert_dictionary_to_ros_message('object_pose_msgs/ObjectPose', pose))
 
         except FileNotFoundError:
-            print("[WARNING] No planning scene parameter is set and table_poses.yaml file is not found! Only objects on other objects facts can be generated!")
+            print("[WARNING] No planning scene parameter is set and table_poses.yaml file is not found!"
+                  "Only objects on other objects facts can be generated!")
         except rospy.ROSInitException:
             print("ROS master was shutdown!")
             sys.exit(1)
         except rospy.ROSException:
-            print(f"Timeout while waiting for pose_selector service: {query_srv_str}!")
+            print(f"Timeout while waiting for anchoring service: {query_service_name}!")
             sys.exit(1)
 
     def generate_facts(self):
-        # query pose_selector for all object classes
-        obj_poses = []
-        for obj in self._objects_of_interest:
-            query_result = self._pose_selector_query_srv(ClassQueryRequest(class_id=obj))
-            obj_poses.extend(query_result.poses)
+        # query anchoring for all object classes
+        class Object:
+            def __init__(self, symbol, **attr):
+                self.name = symbol
+                self.__dict__.update(attr)
+        object_list: List[Object] = []
+        try:
+            query_result = self._kb_query_service_proxy(
+                header=QueryRequest.GET_ALL_INSTANCES,
+                data=None
+                )
+            query_result = json.loads(query_result.data)
+            for symbol, percepts in query_result.items():
+                object_list.append(
+                    Object(
+                        symbol=symbol,
+                        **percepts
+                    )
+                )
+        except rospy.ServiceException as e:
+            print("Service call failed: %s" % e)
+            return []
 
+        try:
+            on_query = "is_on_top_of(Object,Surface)"
+            # is_a_query = "is_a(Object, 'onto:Container')"
+            query_result = self._kb_query_service_proxy(
+                header=QueryRequest.PROLOG_QUERY,
+                data=on_query
+                )
+            query_result = json.loads(query_result.data)
+        except rospy.ServiceException as e:
+            print("Service call failed: %s" % e)
+            return []
         on_facts = []
-
-        # create new list with container objects
-        container_objects = [
-            container_obj for container_obj in obj_poses if container_obj.class_id in self._container_objects]
-
-        # iterate over all container objects to create in facts
-        for container_obj in container_objects:
-            for obj in obj_poses:
-                container_obj_name = container_obj.class_id + "_" + str(container_obj.instance_id)
-                obj_name = obj.class_id + "_" + str(obj.instance_id)
-                new_fact = None
-                # no need to check with itself
-                if container_obj_name != obj_name:
-                    if check_in_condition(obj, container_obj):
-                        new_fact = Fact(name="in", values=[obj_name, container_obj_name])
-
-                # add new fact to list if not already there
-                if new_fact is not None and new_fact not in on_facts:
-                    on_facts.append(new_fact)
-
-        # iterate over all poses
-        for surface_obj in self._planning_scene_object_poses:
-            for obj in obj_poses:
-                surface_obj_name = surface_obj.class_id + "_" + str(surface_obj.instance_id)
-                obj_name = obj.class_id + "_" + str(obj.instance_id)
-                new_fact = None
-                # no need to check with itself
-                if surface_obj_name != obj_name:
-                    # dont check objects which are in a container
-                    if obj_name not in [in_container.values[0] for in_container in on_facts if in_container.name == "in" and in_container.values[0] == obj_name]:
-                        if check_on_condition(obj, surface_obj):
-                            new_fact = Fact(name=self._fact_name, values=[obj_name, surface_obj_name])
-
-                # add new fact to list if not already there
-                if new_fact is not None and new_fact not in on_facts:
-                    on_facts.append(new_fact)
+        for r in query_result:
+            new_fact = Fact(
+                name="on",
+                values=[r['Object'], r['Surface']])
+            on_facts.append(new_fact)
 
         return on_facts
 
